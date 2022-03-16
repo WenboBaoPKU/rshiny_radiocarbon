@@ -1,56 +1,87 @@
 library(shiny)
+library(IntCal)
 
-# Define UI ----
+source('calibration help function.R')
+##### load the prior data ######################################
+# intcal<-ccurve(1)
+# ca.curve<-as.data.frame(intcal)
+
+# Define UI for application that draws a histogram
 ui <- fluidPage(
-  titlePanel("My Shiny App"),
+  
+  # Application title
+  titlePanel("14C Age Cl"),
+  
+  # Sidebar with a slider input for number of bins 
   sidebarLayout(
+    
     sidebarPanel(
-      h1("Installation"),
-      p('Shiny is available on CRAN, so you can install it in the unusual way from your R console'),
+      
+      textInput('rdata','Radiocarbon Age:',value='3000 '),
+      textInput('error','error of Radiocarbon Age:',value='10 '),
+      actionButton('calibrate','Calibration'),
+      textOutput('idata'),
       br(),
-      code('install.package("shiny")'),
       br(),
-      img(src = "index.png", height = 140, width = 200)
+      textOutput('thetamin')
+      
     ),
+    
+    # Show a plot of the generated distribution
     mainPanel(
-      h1('Introduction'),
-      p('Shiny is a new package'),
-      
-      
-      
-      p("p creates a paragraph of text."),
-      p("A new p() command starts a new paragraph. Supply a style attribute to change the format of the entire paragraph.", style = "font-family: 'times'; font-si16pt"),
-      strong("strong() makes bold text."),
-      em("em() creates italicized (i.e, emphasized) text."),
-      br(),
-      code("code displays your text similar to computer code"),
-      div("div creates segments of text with a similar style. This division of text is all blue because I passed the argument 'style = color:blue' to div", style = "color:blue"),
-      br(),
-      p("span does the same thing as div, but it works with",
-        span("groups of words", style = "color:blue"),
-        "that appear inside a paragraph."),
-      h1("Introducing Shiny"),
-      p("Shiny is a new package from RStudio that makes it ", 
-        em("incredibly easy "), 
-        "to build interactive web applications with R."),
-      br(),
-      p("For an introduction and live examples, visit the ",
-        a("Shiny homepage.", 
-          href = "http://shiny.rstudio.com")),
-      br(),
-      h2("Features"),
-      p("- Build useful web applications with only a few lines of code—no JavaScript required."),
-      p("- Shiny applications are automatically 'live' in the same way that ", 
-        strong("spreadsheets"),
-        " are live. Outputs change instantly as users modify inputs, without requiring a reload of the browser.")
+      plotOutput("distPlot",width="642px",height = "442px"),
+      verbatimTextOutput('summary')
     )
   )
 )
 
-# Define server logic ----
+# Define server logic required to draw a histogram
 server <- function(input, output) {
   
+  rdata<-eventReactive(input$calibrate,{
+    c(as.numeric(input$rdata),as.numeric(input$error))
+    })
+  
+  output$summary<- renderText({
+    paste("Calibration Results:",rdata()[1],"+/-",rdata()[2])
+    
+  })
+  output$idata <- renderText({
+    paste("You got :",2*as.numeric(rdata()[1]))
+    
+  })
+  
+  output$distPlot <- renderPlot({
+    
+    #---------------------
+    
+    theta.min <- Mu_To_Theta_Min(
+      rdata = rdata()[1],
+      error=rdata()[2],
+      cc=ca.curve)
+    theta.max <- Mu_To_Theta_Max(
+      rdata = rdata()[1],
+      error=rdata()[2],
+      cc=ca.curve)
+    #---------------------
+    
+    theta <- seq(theta.min,
+                 theta.max,
+                 length.out=(theta.max-theta.min)*2)
+
+    post <- Theta.MuER(theta=theta,cc=ca.curve)
+    post <- Grid_Post(post,rdata=rdata()[1],error=rdata()[2])
+    
+    pm <- round(sum(post$theta*post$prob),0) # mean
+    psd <- round(sqrt(sum((post$theta-pm)^2*post$prob)),0) # sd
+    
+    eps <- 1e-5
+    xpost <- post[post$prob>eps,]
+    #---------------------
+    PlotCurve(post=xpost,pm=pm,psd=psd,rdata=rdata()[1],error=rdata()[2])
+    
+  })
 }
 
-# Run the app ----
+# Run the application 
 shinyApp(ui = ui, server = server)

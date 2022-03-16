@@ -1,2 +1,2 @@
 # rshiny_radiocarbon
-This is the primary version of a program by Rshiny for 14C Age calibration. 
+This is a primary version of the program by Rshiny for 14C Age calibration. 

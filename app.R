@@ -3,34 +3,40 @@ library(IntCal)
 
 source('calibration help function.R')
 ##### load the prior data ######################################
-# intcal<-ccurve(1)
-# ca.curve<-as.data.frame(intcal)
-
-# Define UI for application that draws a histogram
+# Define UI for application 
 ui <- fluidPage(
   
   # Application title
-  titlePanel("14C Age Cl"),
-  
-  # Sidebar with a slider input for number of bins 
+  titlePanel("14C Age Calibration  of Radiocarbon Age"),
+  # Sidebar with a slider input
+  #sidebarLayout(
   sidebarLayout(
-    
+    # Show the input 
     sidebarPanel(
-      
       textInput('rdata','Radiocarbon Age:',value='3000 '),
       textInput('error','error of Radiocarbon Age:',value='10 '),
       actionButton('calibrate','Calibration'),
+      br(),
+      br(),
       textOutput('idata'),
       br(),
-      br(),
-      textOutput('thetamin')
+      textOutput('thetamin'),
+      textOutput('thetamax')
       
     ),
-    
-    # Show a plot of the generated distribution
+    # Show two tab for help and computation results
     mainPanel(
-      plotOutput("distPlot",width="642px",height = "442px"),
-      verbatimTextOutput('summary')
+      tabsetPanel(
+        id = "tabset",
+        tabPanel("Computation", 
+                 plotOutput("distPlot",width="642px",height = "442px"),
+                 verbatimTextOutput('summary')),
+        tabPanel("Help", 
+                 br(),
+                 br(),
+                 "Under Construction!")
+        
+      )
     )
   )
 )
@@ -42,19 +48,34 @@ server <- function(input, output) {
     c(as.numeric(input$rdata),as.numeric(input$error))
     })
   
-  output$summary<- renderText({
+  output$summary <- renderText({
     paste("Calibration Results:",rdata()[1],"+/-",rdata()[2])
     
   })
+  output$thetamin <- renderText({
+    paste("the theta min is :",Mu_To_Theta_Min(
+      rdata = rdata()[1],
+      error=rdata()[2],
+      cc=ca.curve))
+ })
+  
+  output$thetamax <- renderText({
+    paste("the theta min is :",Mu_To_Theta_Max(
+      rdata = rdata()[1],
+      error=rdata()[2],
+      cc=ca.curve))
+  }) 
+  
   output$idata <- renderText({
-    paste("You got :",2*as.numeric(rdata()[1]))
+    paste("You Data is :",as.numeric(rdata()[1]))
     
   })
-  
+  #---------------------
+
   output$distPlot <- renderPlot({
     
     #---------------------
-    
+
     theta.min <- Mu_To_Theta_Min(
       rdata = rdata()[1],
       error=rdata()[2],

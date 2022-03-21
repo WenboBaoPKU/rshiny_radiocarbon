@@ -1,6 +1,7 @@
-##### load the prior data ######################################
-intcal<-ccurve(1)
-ca.curve<-as.data.frame(intcal)
+
+library(IntCal)
+ca.curve <- ccurve(1)
+
 # There are some bugs in the following function ,but it can work now.
 #################################################### 
 Mu_To_Theta_Min <-function(rdata,error,cc=ca.curve)  {
@@ -118,44 +119,87 @@ Grid_Post <- function(post,rdata,error){
   
 }
 ####################################################
-PlotCurve <- function(post,pm,psd,rdata,error){
+HPD <- function(calib, prob=0.95, return.raw=FALSE, rounded=1) {
+  # rank the calibrated ages according to their probabilities (normalised to be sure)
+  o <- order(calib[,2], decreasing=TRUE)
+  summed <- cbind(calib[o,1], cumsum(calib[o,2])/sum(calib[,2]))
+  
+  # find the ages that fall within the hpd range
+  summed <- cbind(summed[,1], summed[,2] <= prob)
+  BCAD <- ifelse(min(diff(calib[,1])) < 0, TRUE, FALSE) # christ...
+  o <- order(summed[,1], decreasing=BCAD) # put ages ascending again
+  calib <- cbind(calib, summed[o,2]) # add a column indicating ages within ranges
+  
+  # find the outer ages of the calibrated ranges. The 0 should help with truncated ages
+  to <- calib[which( diff(c(0, calib[,3])) == 1), 1]
+  from <- calib[which( diff(c(calib[,3], 0)) == -1), 1]
+  to <- sort(to, ifelse(BCAD, FALSE, TRUE)) # sort from oldest to youngest
+  from <- sort(from, ifelse(BCAD, FALSE, TRUE))
+  
+  # find the probability 'area' within each range (as %)
+  perc <- 0
+  for(i in 1:length(from)) {
+    fromto <- which(calib[,1] == from[i]) : which(calib[,1] == to[i])
+    perc[i] <- round(100*sum(calib[fromto,2]), rounded)
+  }
+  
+  if(return.raw)
+    return(list(calib, cbind(from, to, perc))) else
+      return(cbind(from, to, perc))
+}
+
+
+
+
+####################################################
+PlotCurve <- function(post,pm,psd,rdata,error,hpd){
   ##### draw the posterior density ͼ######
   xrange <- post$theta
   ydens <- post$prob
- 
+  
   opar<-par(no.readonly = TRUE)
-  par(fig=c(0,1,0,0.8))
+  par(fig=c(0,1,0,0.5))
   plot(x=xrange,y=ydens,
        type='n',
        col='blue',
        yaxt='n',
        xlim=c(range(xrange)[2]+50,range(xrange)[1]-50),
-       ylim=c(0,max(ydens)*1.1),
+       ylim=c(0,max(ydens)),
        xlab='BP Calendar Age (Year)',ylab='Probability')
   
   xx<-c(c(xrange[1],xrange),rev(c(xrange[1],xrange)))
   yy<-c(c(ydens[1],ydens),rep(0,times=length(ydens)+1))
   polygon(x=xx,y=yy,col='darkgrey',border = 'white')
 
-  text(x=range(xrange)[1],
-       y=max(ydens),
-       family='serif',
-       cex=1,
-       paste(' Mean :',pm,'\n','Sd :',psd))
+  # text(x=range(xrange)[1],
+  #      y=max(ydens)*0.8,
+  #      family='serif',
+  #      cex=1,
+  #      paste(' Mean :',pm,'\n','Sd :',psd))
+  
+  
+  for(i in 1:dim(hpd)[1]){
+    text(x=range(xrange)[1]+40,
+         y=max(ydens)*(0.8-0.15*(i-1)),
+         family='serif',
+         cex=0.9,
+         paste(round(hpd[i,1],digits=0),'  (',round(hpd[i,3],digits=1),'%)  ',round(hpd[i,2],digits=0))
+    )
+  }
+
   
   ##### draw the calibrate curve #########
   mu <- post$mu
   er <- post$er
   
-  
-  par(fig=c(0,1,0.50,1),new=TRUE)
+  par(fig=c(0,1,0.2,1),new=TRUE)
   plot(x=xrange,
        y=mu,
        type='n',
        #main='IntCal20',
        
        xlim=c(range(xrange)[2]+50,range(xrange)[1]-50),
-       #ylim=c(min(mu)-5,max(mu)+10),
+       ylim=c(min(mu)-20,max(mu)+20),
        col='green',xlab='',ylab='14C Age',
        xaxt='n'
   )
@@ -164,17 +208,27 @@ PlotCurve <- function(post,pm,psd,rdata,error){
   yy<-c(c(mu[1],mu+er),rev(c(mu[1],mu-er)))
   polygon(xx,yy,col='#FFB6C1',border = 'white')
   
-  text(x=range(xrange)[1],
-       y=(max(mu)-min(mu))*0.9+min(mu),
+  lines(xrange,mu+er,col='blue')
+  lines(xrange,mu-er,col='blue')
+  
+  text(x=range(xrange)[1]+40,
+       y=(max(mu)-min(mu))+min(mu),
        #family='serif',
        cex=0.6,
        paste(' IntCal20'))
   
-  text(x=range(xrange)[1],
-       y=(max(mu)-min(mu))*0.7+min(mu),
+  text(x=range(xrange)[1]+40,
+       y=(max(mu)-min(mu))*0.9+min(mu),
        family='serif',
        cex=1,
        paste('Radiocarbon Age\n',rdata,'+/-',error))
+  
+  text(x=range(xrange)[1]+40,
+       y=(max(mu)-min(mu))*0.75+min(mu),
+       family='serif',
+       cex=1,
+       paste(' Mean :',pm,'\n','Sd :',psd))
+  
   abline(h=rdata,col='grey',lty=6)
   abline(h=rdata+error/2,col='pink',lty=6)
   abline(h=rdata-error/2,col='pink',lty=6)

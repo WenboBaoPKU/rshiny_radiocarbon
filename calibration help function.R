@@ -115,7 +115,7 @@ Grid_Post <- function(post,rdata,error){
   post$prob<-exp(post$prob)
   post$prob<-post$prob/sum(post$prob)
   
-  return(post)
+  return(data.frame(post))
   
 }
 ####################################################
